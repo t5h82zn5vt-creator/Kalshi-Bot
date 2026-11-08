@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kalshi BTC Bot</title>
+<style>
+body{background:#0b1220;color:white;font-family:Arial,sans-serif;margin:0;padding:18px}
+h1{font-size:25px}
+.card{background:#17243a;border-radius:14px;padding:18px;margin:14px 0}
+button{background:#2563eb;color:white;border:0;border-radius:9px;padding:13px;font-size:16px;margin:4px}
+.active{background:#059669}
+small,p{color:#cbd5e1}
+.price{font-size:23px;font-weight:bold}
+.warning{color:#facc15}
+</style>
+</head>
+<body>
+<h1>₿ Kalshi BTC Bot</h1>
+<p>5-minute and 15-minute Bitcoin market scanner</p>
+<button id="b5" class="active" onclick="setTime(5)">5 MIN</button>
+<button id="b15" onclick="setTime(15)">15 MIN</button>
+<button onclick="scan()">Refresh</button>
+<div class="card">
+<h3>Market connection</h3>
+<p id="status">Connecting...</p>
+<small id="updated"></small>
+</div>
+<div id="markets"></div>
+<div class="card">
+<h3>Trading modes</h3>
+<p>Signals: market watchlist only</p>
+<p>Automatic trading: disabled</p>
+<small>Do not use unverified signals to place trades. No guaranteed win rate.</small>
+</div>
+<script>
+let mins=5;
+function setTime(n){
+mins=n;
+document.getElementById("b5").classList.toggle("active",n===5);
+document.getElementById("b15").classList.toggle("active",n===15);
+scan();
+}
+function esc(s){
+return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function cents(m,key){
+if(m[key+"_dollars"]!=null)return Math.round(Number(m[key+"_dollars"])*100);
+if(m[key]!=null)return Number(m[key]);
+return null;
+}
+function show(v){return v==null||!Number.isFinite(v)?"—":v.toFixed(1)+"¢";}
+async function scan(){
+const status=document.getElementById("status");
+const out=document.getElementById("markets");
+status.textContent="Scanning Kalshi...";
+out.innerHTML="";
+try{
+const series=mins===5?"KXBTC5M":"KXBTC15M";
+const url="https://external-api.kalshi.com/trade-api/v2/markets?series_ticker="+series+"&status=open&limit=100";
+const res=await fetch(url,{cache:"no-store"});
+if(!res.ok)throw Error("HTTP "+res.status);
+const data=await res.json();
+const markets=(data.markets||[]).sort((a,b)=>new Date(a.close_time)-new Date(b.close_time)).slice(0,12);
+status.textContent="Connected — "+markets.length+" markets found";
+document.getElementById("updated").textContent="Updated "+new Date().toLocaleTimeString();
+out.innerHTML=markets.length?markets.map(m=>'<div class="card"><h3>'+esc(m.title||m.ticker)+'</h3><small>'+esc(m.ticker)+'</small><p>YES bid / ask</p><div class="price">'+show(cents(m,"yes_bid"))+' / '+show(cents(m,"yes_ask"))+'</div><p>NO bid / ask</p><div class="price">'+show(cents(m,"no_bid"))+' / '+show(cents(m,"no_ask"))+'</div><p class="warning">WAIT — no validated trading signal</p></div>').join(""):'<div class="card">No open markets found.</div>';
+}catch(e){
+status.textContent="Market data unavailable";
+out.innerHTML='<div class="card"><p>Live data could not load: '+esc(e.message)+'</p><p>Safari may block direct Kalshi requests. A backend will be needed if this happens.</p></div>';
+}
+}
+scan();
+setInterval(scan,30000);
+</script>
+</body>
+</html>
